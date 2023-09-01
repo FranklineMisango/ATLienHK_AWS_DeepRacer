@@ -1,4 +1,4 @@
-# <img src="img/aws_deep_racer.png.png?raw=true" height="70">
+# <img src="img/aws_deep_racer.png?raw=true" height="70">
 
 <p align = center>
   <img src="https://img.shields.io/badge/-Python-3776AB?logo=python&logoColor=white"/>
