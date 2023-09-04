@@ -1,9 +1,11 @@
+import math
+import numpy as np
+
+
+
 def reward_function(params):
     
-    
-    import math
-    import numpy as np
-    
+        
     # Parameters for Speed Incentive
     FUTURE_STEP = 6
     TURN_THRESHOLD_SPEED = 6    # degrees
@@ -20,7 +22,7 @@ def reward_function(params):
 
 
     def identify_corner(waypoints, closest_waypoints, future_step):
-
+        
         # Identify next waypoint and a further waypoint
         point_prev = waypoints[closest_waypoints[0]]
         point_next = waypoints[closest_waypoints[1]]
