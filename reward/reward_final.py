@@ -5,13 +5,7 @@ import numpy as np
 
 def reward_function(params):
     
-
-    #TODO-Define optimal turn speeds
-
-    TRIAL_TRACK = '' #Load the spain & AD trial tracks
-
-
-        
+    
     # Parameters for Speed Incentive
     FUTURE_STEP = 6
     TURN_THRESHOLD_SPEED = 6    # degrees

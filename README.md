@@ -12,3 +12,10 @@ This README provides an overview of my current and future DeepRacer Models (v1 c
 * Define an action Space
 * Develop a Reward function
 * Experiment with various hyperparameters
+* Modifying Training times : Optimal turn speeds
+* Testing on different tracks : AWS DeepRacer Tracks
+
+## Modifications
+
+* Faster Turning speed
+* Easier handling of sharper turns
