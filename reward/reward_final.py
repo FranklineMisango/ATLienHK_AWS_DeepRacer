@@ -10,7 +10,7 @@ def reward_function(params):
     FUTURE_STEP = 6
     TURN_THRESHOLD_SPEED = 6    # degrees
     SPEED_THRESHOLD_SLOW = 1.8  # m/s
-    SPEED_THRESHOLD_FAST = 2    # m/s
+    SPEED_THRESHOLD_FAST = 4    # m/s
 
     # Parameters for Straightness Incentive
     FUTURE_STEP_STRAIGHT = 8

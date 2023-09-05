@@ -1,8 +1,10 @@
+import math
+import numpy as np
+
+
 def reward_function(params):
  
    
-    import math
-    import numpy as np
     
     # Parameters
     FUTURE_STEP = 7
