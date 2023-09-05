@@ -38,7 +38,7 @@ def reward_function(params):
         # Calculate the difference between the headings
         diff_heading = abs(heading_current - heading_future)
 
-        # Check we didn't choose the reflex angle
+        # The reflex angle
         if diff_heading > 180:
             diff_heading = 360 - diff_heading
 
