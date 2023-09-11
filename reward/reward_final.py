@@ -9,8 +9,8 @@ def reward_function(params):
     # Parameters for Speed Incentive
     FUTURE_STEP = 6
     TURN_THRESHOLD_SPEED = 6    # degrees
-    SPEED_THRESHOLD_SLOW = 1.8  # m/s
-    SPEED_THRESHOLD_FAST = 4    # m/s
+    SPEED_THRESHOLD_SLOW = 0.1  # m/s
+    SPEED_THRESHOLD_FAST = 5    # m/s
 
     # Parameters for Straightness Incentive
     FUTURE_STEP_STRAIGHT = 8
@@ -61,7 +61,8 @@ def reward_function(params):
             go_fast = True
         else:
             # If there is a corner encourage slowing down
-            go_fast = False
+            #Try changing to False back after the failure of the code 
+            go_fast = True 
 
         return go_fast
 
@@ -96,8 +97,9 @@ def reward_function(params):
     waypoints = params['waypoints']
 
     # Strongly discourage going off track
+    # Minimize the punishment to encourage speed (1.7)
     if is_offtrack:
-        reward = 1e-3
+        reward = 1e-1
         return float(reward)
     
     # Give higher reward if the car is closer to centre line and vice versa
@@ -114,20 +116,23 @@ def reward_function(params):
     stay_straight = select_straight(waypoints, closest_waypoints, 
                                     FUTURE_STEP_STRAIGHT)
     if stay_straight and abs(steering_angle) < STEERING_THRESHOLD:
-        reward += 0.3
+        #The default is 0.3
+        reward += 0.5
 
     # Implement speed incentive
     go_fast = select_speed(waypoints, closest_waypoints, FUTURE_STEP)
 
     if go_fast and speed > SPEED_THRESHOLD_FAST and abs(steering_angle) < STEERING_THRESHOLD:
-        reward += 2.0
-
+        #Increase the speed by 0.5
+        reward += 2.5
+        #Increase the reward here by also 0.5
     elif not go_fast and speed < SPEED_THRESHOLD_SLOW:
-        reward += 0.5    
+        reward += 1.0    
 
     # Implement stay on track incentive
     if not all_wheels_on_track:
-        reward -= 0.5
+        #The default is -0.5 --> Edited to -0.3
+        reward -= 0.3
 
     reward = max(reward, 1e-3)
     return float(reward)
