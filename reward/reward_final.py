@@ -48,16 +48,22 @@ def reward_function(params):
     # Check if the speed has decreased
     has_speed_dropped = PARAMS.prev_speed is not None and PARAMS.prev_speed > speed
 
+     # Define the minimum speed
+    min_speed = 1.5
+
+    # Calculate the speed reward
+    speed_reward = calculate_speed_reward(speed, min_speed)
+
     # Penalize slowing down without a valid reason on straight roads
     speed_maintain_bonus = 1
     if has_speed_dropped and not is_turn_upcoming:
-        speed_maintain_bonus = min(speed / PARAMS.prev_speed, 1)
+        speed_maintain_bonus = min(speed / max(PARAMS.prev_speed, min_speed), 1)
 
     # Check if the speed has increased - provide additional rewards
     has_speed_increased = PARAMS.prev_speed is not None and PARAMS.prev_speed < speed
     speed_increase_bonus = 2
     if has_speed_increased and not is_turn_upcoming:
-        speed_increase_bonus = max(speed / PARAMS.prev_speed, 1)
+        speed_increase_bonus = max(speed / max(PARAMS.prev_speed, min_speed), 1)
 
     #TODO Penalize making the heading direction worse
     heading_decrease_bonus = 0
@@ -95,7 +101,7 @@ def reward_function(params):
     # Calculate rewards
     heading_reward = calculate_heading_reward(heading, vehicle_x, vehicle_y, next_point)
     distance_reward = calculate_distance_reward(bearing, normalized_car_distance_from_route, normalized_route_distance_from_inner_border, normalized_route_distance_from_outer_border)
-    speed_reward = calculate_speed_reward(speed)
+    speed_reward = speed_reward
 
     # Heading component of reward
     HC = 10 * heading_reward * steering_angle_maintain_bonus
@@ -117,6 +123,7 @@ def reward_function(params):
     # Apply a cap to the reward to avoid excessive values
     total_reward = min(total_reward, MAX_REWARD)
 
+   
     return total_reward
 
 def calculate_heading_reward(heading, vehicle_x, vehicle_y, next_point):
@@ -151,10 +158,11 @@ def calculate_distance_reward(bearing, normalized_car_distance_from_route, norma
 
     return distance_reward
 
-def calculate_speed_reward(speed):
+def calculate_speed_reward(speed, min_speed):
     # Define a reasonable maximum speed for the track
     max_speed = 5  # Adjust as per track specifics (Original is 4)
-    return min(speed / max_speed, 1)
+    speed_reward = min((speed - min_speed) / (max_speed - min_speed), 1)
+    return max(speed_reward, 0.1) 
 
 def calculate_intermediate_progress_bonus(progress, steps):
     progress_reward = 10 * progress / steps
