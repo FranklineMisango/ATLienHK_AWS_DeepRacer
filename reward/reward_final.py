@@ -45,13 +45,19 @@ def reward_function(params):
         PARAMS.prev_normalized_distance_from_route = None
         PARAMS.intermediate_progress = [0] * 11
 
-    # Check if the speed has dropped
+    # Check if the speed has decreased
     has_speed_dropped = PARAMS.prev_speed is not None and PARAMS.prev_speed > speed
 
-    # Penalize slowing down without good reason on straight portions
+    # Penalize slowing down without a valid reason on straight roads
     speed_maintain_bonus = 1
     if has_speed_dropped and not is_turn_upcoming:
         speed_maintain_bonus = min(speed / PARAMS.prev_speed, 1)
+
+    # Check if the speed has increased - provide additional rewards
+    has_speed_increased = PARAMS.prev_speed is not None and PARAMS.prev_speed < speed
+    speed_increase_bonus = 2
+    if has_speed_increased and not is_turn_upcoming:
+        speed_increase_bonus = max(speed / PARAMS.prev_speed, 1)
 
     #TODO Penalize making the heading direction worse
     heading_decrease_bonus = 0
