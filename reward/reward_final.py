@@ -48,11 +48,12 @@ def reward_function(params):
     # Check if the speed has decreased
     has_speed_dropped = PARAMS.prev_speed is not None and PARAMS.prev_speed > speed
 
-     # Define the minimum speed
-    min_speed = 1.5
+    # Define the minimum and maximum speeds
+    min_speed = 2.5
+    max_speed = 5.0
 
     # Calculate the speed reward
-    speed_reward = calculate_speed_reward(speed, min_speed)
+    speed_reward = calculate_speed_reward(speed, min_speed, max_speed)
 
     # Penalize slowing down without a valid reason on straight roads
     speed_maintain_bonus = 1
@@ -65,7 +66,12 @@ def reward_function(params):
     if has_speed_increased and not is_turn_upcoming:
         speed_increase_bonus = max(speed / max(PARAMS.prev_speed, min_speed), 1)
 
-    #TODO Penalize making the heading direction worse
+    # Penalize moving off track
+    off_track_penalty = 1 - abs(normalized_distance_from_route)
+    if off_track_penalty < 0.5:
+        off_track_penalty = 0.1
+
+    # Penalize making the heading direction worse
     heading_decrease_bonus = 0
     direction_diff = calculate_direction_diff(heading, vehicle_x, vehicle_y, next_point)
     if PARAMS.prev_direction_diff is not None and is_heading_in_right_direction:
@@ -108,7 +114,7 @@ def reward_function(params):
     # Distance component of reward
     DC = 10 * distance_reward * distance_reduction_bonus
     # Speed component of reward
-    SC = 5 * speed_reward * speed_maintain_bonus
+    SC = 10 * speed_reward * speed_maintain_bonus * speed_increase_bonus
     # Immediate component of reward
     IC = (HC + DC + SC) ** 2 + (HC * DC * SC)
     # If an unpardonable action is taken, then the immediate reward is 0
@@ -118,31 +124,23 @@ def reward_function(params):
     intermediate_progress_bonus = calculate_intermediate_progress_bonus(progress, steps)
     LC = curve_bonus + intermediate_progress_bonus + straight_section_bonus
 
-    total_reward = max(IC + LC, 1e-3)
-    
+    total_reward = max(IC + LC, 1e-3) * off_track_penalty
+
     # Apply a cap to the reward to avoid excessive values
     total_reward = min(total_reward, MAX_REWARD)
 
-   
     return total_reward
 
-def calculate_heading_reward(heading, vehicle_x, vehicle_y, next_point):
-    next_point_x = next_point[0]
-    next_point_y = next_point[1]
+def calculate_speed_reward(speed, min_speed, max_speed):
+    
+    if speed < min_speed:
+        return 0.1  # Penalize low speeds
+    elif speed > max_speed:
+        return 1.0  # Maximum reward for speeds above the maximum
+    else:
+        return (speed - min_speed) / (max_speed - min_speed)  # Reward higher speeds proportionally
 
-    # Calculate the direction in radians, arctan2(dy, dx), the result is (-pi, pi) in radians between target and current vehicle position
-    route_direction = math.atan2(next_point_y - vehicle_y, next_point_x - vehicle_x)
-    # Convert to degrees
-    route_direction = math.degrees(route_direction)
-    # Calculate the difference between the track direction and the heading direction of the car
-    direction_diff = route_direction - heading
-    # Check that the direction_diff is in valid range
-    # Then compute the heading reward
-    heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 10
-    if abs(direction_diff) <= 20:
-        heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 4
 
-    return heading_reward
 
 def calculate_distance_reward(bearing, normalized_car_distance_from_route, normalized_route_distance_from_inner_border, normalized_route_distance_from_outer_border):
     distance_reward = 0
@@ -155,14 +153,7 @@ def calculate_distance_reward(bearing, normalized_car_distance_from_route, norma
     elif "left" in bearing:  # i.e., on left side of the route line
         sigma = abs(normalized_route_distance_from_outer_border / 4)
         distance_reward = math.exp(-0.5 * abs(normalized_car_distance_from_route) ** 2 / sigma ** 2)
-
     return distance_reward
-
-def calculate_speed_reward(speed, min_speed):
-    # Define a reasonable maximum speed for the track
-    max_speed = 5  # Adjust as per track specifics (Original is 4)
-    speed_reward = min((speed - min_speed) / (max_speed - min_speed), 1)
-    return max(speed_reward, 0.1) 
 
 def calculate_intermediate_progress_bonus(progress, steps):
     progress_reward = 10 * progress / steps
@@ -191,3 +182,21 @@ def calculate_direction_diff(heading, vehicle_x, vehicle_y, next_point):
     # Calculate the difference between the track direction and the heading direction of the car
     direction_diff = route_direction - heading
     return direction_diff
+
+def calculate_heading_reward(heading, vehicle_x, vehicle_y, next_point):
+    next_point_x = next_point[0]
+    next_point_y = next_point[1]
+
+    # Calculate the direction in radians, arctan2(dy, dx), the result is (-pi, pi) in radians between target and current vehicle position
+    route_direction = math.atan2(next_point_y - vehicle_y, next_point_x - vehicle_x)
+    # Convert to degrees
+    route_direction = math.degrees(route_direction)
+    # Calculate the difference between the track direction and the heading direction of the car
+    direction_diff = route_direction - heading
+    # Check that the direction_diff is in valid range
+    # Then compute the heading reward
+    heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 10
+    if abs(direction_diff) <= 20:
+        heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 4
+
+    return heading_reward
