@@ -1,118 +1,230 @@
 import math
-import matplotlib.pyplot as plt
-import numpy as np
 
-TRACK_FILE = "ChampionshipCup2019_track.npy"
+class PARAMS:
+    prev_speed = None
+    prev_steering_angle = None 
+    prev_steps = None
+    prev_direction_diff = None
+    prev_normalized_distance_from_route = None
+    unpardonable_action = False
+    intermediate_progress = [0] * 11
+    consecutive_sharp_corners = False
 
-# Parameters
-FUTURE_STEP = 7
-MID_STEP = 4
-TURN_THRESHOLD = 10   # degrees
-DIST_THRESHOLD = 1.2  # metres
+def reward_function(params):
 
-# Colour macros
-FAST = 0
-SLOW = 1
-BONUS_FAST =  2
+    # Constants
+    SPEED_INCREASE_BONUS_DEFAULT = 2
+    OFF_TRACK_PENALTY_THRESHOLD = 0.5
+    OFF_TRACK_PENALTY_MIN = 0.1
+    HEADING_DECREASE_BONUS_MAX = 10
+    DIRECTION_DIFF_THRESHOLD_1 = 10
+    DIRECTION_DIFF_THRESHOLD_2 = 5
+    STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER = 2
+    SHARP_CORNER_SPEED = 0.8  # Minimum speed for sharp corners
+    MAX_REWARD = 1e3
 
+    # Read input parameters
+    heading = params['heading']
+    distance_from_center = params['distance_from_center']
+    steps = params['steps']
+    steering_angle = params['steering_angle']
+    speed = params['speed']
+    progress = params.get('progress', 0)
+    bearing = params.get('bearing', "")
+    normalized_car_distance_from_route = params.get('normalized_car_distance_from_route', 0)
+    normalized_route_distance_from_inner_border = params.get('normalized_route_distance_from_inner_border', 0)
+    normalized_route_distance_from_outer_border = params.get('normalized_route_distance_from_outer_border', 0)
+    vehicle_x = params['x']
+    vehicle_y = params['y']
+    waypoints = params['waypoints']
+    closest_waypoints = params['closest_waypoints']
+    is_turn_upcoming = params.get('is_turn_upcoming', False)
+    is_heading_in_right_direction = params.get('is_heading_in_right_direction', False)
+    normalized_distance_from_route = params.get('normalized_distance_from_route', 0)
+    curve_bonus = params.get('curve_bonus', 0)
+    straight_section_bonus = params.get('straight_section_bonus', 0)
+    all_wheels_on_track = params['all_wheels_on_track']
+    wheels_on_track = params.get('wheels_on_track', 4)  # Assuming 4 wheels by default
 
-def identify_corner(waypoints, closest_waypoints, future_step):
+    # Calculate the next waypoint
+    next_point = waypoints[closest_waypoints[1]]
 
-    # Identify next waypoint and a further waypoint
-    point_prev = waypoints[closest_waypoints[0]]
-    point_next = waypoints[closest_waypoints[1]]
-    point_future = waypoints[min(len(waypoints) - 1, 
-                                 closest_waypoints[1] + future_step)]
+    # Reinitialize previous parameters if it is a new episode
+    if PARAMS.prev_steps is None or steps < PARAMS.prev_steps:
+        PARAMS.prev_speed = None
+        PARAMS.prev_steering_angle = None
+        PARAMS.prev_direction_diff = None
+        PARAMS.prev_normalized_distance_from_route = None
+        PARAMS.intermediate_progress = [0] * 11
+        PARAMS.consecutive_sharp_corners = False
 
-    # Calculate headings to waypoints
-    heading_current = math.degrees(math.atan2(point_prev[1]-point_next[1], 
-                                              point_prev[0] - point_next[0]))
-    heading_future = math.degrees(math.atan2(point_prev[1]-point_future[1], 
-                                             point_prev[0]-point_future[0]))
+    # Check if the speed has decreased
+    has_speed_dropped = PARAMS.prev_speed is not None and PARAMS.prev_speed > speed
 
-    # Calculate the difference between the headings
-    diff_heading = abs(heading_current - heading_future)
+    # Define the minimum and maximum speeds
+    min_speed = 1.5
+    max_speed = 4.0
 
-    # Check we didn't choose the reflex angle
-    if diff_heading > 180:
-        diff_heading = 360 - diff_heading
+    # Calculate the speed reward
+    speed_reward = calculate_speed_reward(speed, min_speed, max_speed)
 
-    # Calculate distance to further waypoint
-    dist_future = np.linalg.norm([point_next[0] - point_future[0], 
-                                  point_next[1] - point_future[1]])  
+    # Penalize slowing down without a valid reason on straight roads
+    speed_maintain_bonus = 1
+    if has_speed_dropped and not is_turn_upcoming:
+        speed_maintain_bonus = min(speed / max(PARAMS.prev_speed, min_speed), 1)
 
-    return diff_heading, dist_future
+    # Check if the speed has increased - provide additional rewards
+    has_speed_increased = PARAMS.prev_speed is not None and PARAMS.prev_speed < speed
+    speed_increase_bonus = SPEED_INCREASE_BONUS_DEFAULT
+    if has_speed_increased and not is_turn_upcoming:
+        speed_increase_bonus = max(speed / max(PARAMS.prev_speed, min_speed), 1)
 
+    # Penalize moving off track
+    off_track_penalty = 1 - abs(normalized_distance_from_route)
+    if off_track_penalty < OFF_TRACK_PENALTY_THRESHOLD:
+        off_track_penalty = OFF_TRACK_PENALTY_MIN
 
-# This is a modified version of the actual select_speed function used in 
-# reward_qualifier.py so that there is a 3rd possible return value to allow 
-# visualisation of the "bonus fast" points 
-def select_speed(waypoints, closest_waypoints, future_step, mid_step):
+    # Penalize making the heading direction worse
+    heading_bonus = 0
+    direction_diff = calculate_direction_diff(heading, vehicle_x, vehicle_y, next_point)
+    if PARAMS.prev_direction_diff is not None and is_heading_in_right_direction:
+        if abs(PARAMS.prev_direction_diff / direction_diff) > 1:
+            heading_bonus = min(HEADING_DECREASE_BONUS_MAX, abs(PARAMS.prev_direction_diff / direction_diff))
 
-    # Identify if a corner is in the future
-    diff_heading, dist_future = identify_corner(waypoints, closest_waypoints,
-                                                future_step)
+    # Check if the steering angle has changed
+    has_steering_angle_changed = PARAMS.prev_steering_angle is not None and not math.isclose(PARAMS.prev_steering_angle, steering_angle)
 
-    if diff_heading < TURN_THRESHOLD:
-        # If there's no corner encourage going faster
-        speed_colour = FAST
+    # Not changing the steering angle is good if heading in the right direction
+    steering_angle_maintain_bonus = 1
+    if is_heading_in_right_direction and not has_steering_angle_changed:
+        if abs(direction_diff) < DIRECTION_DIFF_THRESHOLD_1:
+            steering_angle_maintain_bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
+        if abs(direction_diff) < DIRECTION_DIFF_THRESHOLD_2:
+            steering_angle_maintain_bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
+        if PARAMS.prev_direction_diff is not None and abs(PARAMS.prev_direction_diff) > abs(direction_diff):
+            steering_angle_maintain_bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
+
+    # Reward reducing distance to the race line
+    distance_reduction_bonus = 1
+    if PARAMS.prev_normalized_distance_from_route is not None and PARAMS.prev_normalized_distance_from_route > normalized_distance_from_route:
+        if abs(normalized_distance_from_route) > 0:
+            distance_reduction_bonus = min(abs(PARAMS.prev_normalized_distance_from_route / normalized_distance_from_route), 2)
+
+    # Check for consecutive sharp corners
+    if is_turn_upcoming and PARAMS.consecutive_sharp_corners:
+        # Slow down more for consecutive sharp corners
+        speed *= 0.7
+    if is_turn_upcoming:
+        PARAMS.consecutive_sharp_corners = True
     else:
-        if dist_future < DIST_THRESHOLD:
-            # If there is a corner and it's close encourage going slower
-            speed_colour = SLOW
+        PARAMS.consecutive_sharp_corners = False
+
+    # Before returning reward, update the variables
+    PARAMS.prev_speed = speed
+    PARAMS.prev_steering_angle = steering_angle
+    PARAMS.prev_direction_diff = direction_diff
+    PARAMS.prev_steps = steps
+    PARAMS.prev_normalized_distance_from_route = normalized_distance_from_route
+
+    # Calculate rewards
+    heading_reward = calculate_heading_reward(heading, vehicle_x, vehicle_y, next_point)
+    distance_reward = calculate_distance_reward(bearing, normalized_car_distance_from_route, normalized_route_distance_from_inner_border, normalized_route_distance_from_outer_border)
+
+    # Heading component of reward
+    HC = 10 * heading_reward * steering_angle_maintain_bonus
+    # Distance component of reward
+    DC = 10 * distance_reward * distance_reduction_bonus
+    # Speed component of reward
+    SC = 10 * speed_reward * speed_maintain_bonus * speed_increase_bonus
+    # Immediate component of reward
+    IC = (HC + DC + SC) ** 2 + (HC * DC * SC)
+    # If an unpardonable action is taken, then the immediate reward is 0
+    if PARAMS.unpardonable_action:
+        IC = 1e-3
+    # Long term component of reward
+    intermediate_progress_bonus = calculate_intermediate_progress_bonus(progress, steps)
+    LC = curve_bonus + intermediate_progress_bonus + straight_section_bonus
+
+    # Incentive for finishing the track
+    if progress == 100:
+        LC += 500  # Large bonus for finishing the track
+
+    # Sharp corner logic: allow up to three wheels off track
+    if is_turn_upcoming:
+        if wheels_on_track < 1:
+            total_reward = 1e-3  # Heavy penalty if all wheels are off track
+        elif wheels_on_track < 4:
+            total_reward *= 0.5  # Moderate penalty if up to three wheels are off track
+    else:
+        if not all_wheels_on_track:
+            total_reward = 1e-3  # Heavy penalty if not all wheels are on track
+
+    total_reward = max(IC + LC, 1e-3) * off_track_penalty
+
+    # Apply a cap to the reward to avoid excessive values
+    total_reward = min(total_reward, MAX_REWARD)
+
+    return total_reward
+
+def calculate_speed_reward(speed, min_speed, max_speed):
+    if speed < SHARP_CORNER_SPEED:
+        return 0.1  # Penalize low speeds, including sharp corners
+    elif speed > max_speed:
+        return 1.0  # Maximum reward for speeds above the maximum
+    else:
+        return (speed - min_speed) / (max_speed - min_speed)  # Reward higher speeds proportionally
+
+def calculate_distance_reward(bearing, normalized_car_distance_from_route, normalized_route_distance_from_inner_border, normalized_route_distance_from_outer_border):
+    distance_reward = 0.1
+    if bearing == "S":
+        distance_reward = 1.0 - normalized_route_distance_from_inner_border
+    if bearing == "D":
+        sigma = 0.3 * (normalized_route_distance_from_outer_border / 4)
+        distance_reward = math.exp(-0.5 * abs(normalized_car_distance_from_route) ** 2 / sigma ** 2)
+    return distance_reward
+
+def calculate_intermediate_progress_bonus(progress, steps):
+    progress_reward = 10 * progress / steps
+    if steps <= 5:
+        progress_reward = 1  # Ignore progress in the first 5 steps
+
+    intermediate_progress_bonus = 0
+    pi = int(progress // 10)
+    if pi != 0 and PARAMS.intermediate_progress[pi] == 0:
+        if pi == 10:  # 100% track completion
+            intermediate_progress_bonus = progress_reward ** 14
         else:
-            # If the corner is far away, re-assess closer points
-            diff_heading_mid, dist_mid = identify_corner(waypoints, 
-                                                         closest_waypoints, 
-                                                         mid_step)
+            intermediate_progress_bonus = progress_reward ** (5 + 0.75 * pi)
+        PARAMS.intermediate_progress[pi] = intermediate_progress_bonus
 
-            if diff_heading_mid < TURN_THRESHOLD:
-                # If there's no corner encourage going faster
-                speed_colour = BONUS_FAST
-            else:
-                # If there is a corner and it's close encourage going slower
-                speed_colour = SLOW
+    return intermediate_progress_bonus
 
-    return speed_colour
+def calculate_direction_diff(heading, vehicle_x, vehicle_y, next_point):
+    next_point_x = next_point[0]
+    next_point_y = next_point[1]
 
+    # Calculate the direction in radians, arctan2(dy, dx), the result is (-pi, pi) in radians between target and current vehicle position
+    route_direction = math.atan2(next_point_y - vehicle_y, next_point_x - vehicle_x)
+    # Convert to degrees
+    route_direction = math.degrees(route_direction)
+    # Calculate the difference between the track direction and the heading direction of the car
+    direction_diff = route_direction - heading
+    return direction_diff
 
-# Get waypoints from numpy file
-waypoints = np.load(TRACK_FILE)
+def calculate_heading_reward(heading, vehicle_x, vehicle_y, next_point):
+    next_point_x = next_point[0]
+    next_point_y = next_point[1]
 
-print("----- Parameters -----")
-print("   FUTURE_STEP: %d" % (FUTURE_STEP))
-print("      MID_STEP: %d" % (MID_STEP))
-print("TURN_THRESHOLD: %d" % (TURN_THRESHOLD))
-print("DIST_THRESHOLD: %.1f" % (DIST_THRESHOLD))
-print("----------------------")
+    # Calculate the direction in radians, arctan2(dy, dx), the result is (-pi, pi) in radians between target and current vehicle position
+    route_direction = math.atan2(next_point_y - vehicle_y, next_point_x - vehicle_x)
+    # Convert to degrees
+    route_direction = math.degrees(route_direction)
+    # Calculate the difference between the track direction and the heading direction of the car
+    direction_diff = route_direction - heading
+    # Check that the direction_diff is in valid range
+    # Then compute the heading reward
+    heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 10
+    if abs(direction_diff) <= 20:
+        heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 4
 
-# Extract the x and y columns from the waypoints
-waypoints = waypoints[:,2:4]
-
-color_dict = {0:'#ff7f0e', 1:'#1f77b4', 2:'#ff460e'}
-label_dict = {0:'Fast Incentive', 1:'Slow Incentive', 2:'Bonus Fast Incentive'}
-
-colours = []
-
-for i in range(len(waypoints)):
-    # Simulate input parameter
-    closest_waypoints = [i-1, i]
-
-    # Determine what speed will be rewarded
-    speed_colour = select_speed(waypoints, closest_waypoints, FUTURE_STEP, 
-                                MID_STEP)
-    colours.append(speed_colour)
-
-# Plot points
-fig, ax = plt.subplots()
-
-for g in np.unique(colours):
-    ix = np.where(colours==g)
-    ax.scatter(waypoints[ix,0], waypoints[ix,1], c=color_dict[g], 
-               label=label_dict[g])
-
-ax.legend(fancybox=True, shadow=True)
-ax.set_aspect('equal')
-plt.axis('off')
-
-plt.show()
+    return heading_reward
