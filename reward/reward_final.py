@@ -1,9 +1,73 @@
 import math
 
-#Work on the completing track strategy, speed and stay as much as possible in the middle
-#Implement the logic that in sharp corners only three wheels can veer off but not all of them 
-#Track completion - 100% without veering off the road is the goal
-#Affirm the final speed to be 1.5 and 4 as min and max respectively
+#TODO-work on slowing down in sharp corners amd adjusting to take them, then run faster after taking the sharp corner
+#TODO-work on getting a dynamic and accurate turning angle for left and right turns with a max of 30 degrees either way for a route with some sharp corners
+#TODO- Make an accurate track completion first a priority before working on the speed and other factors
+
+#Vehicle class
+import math
+
+class PARAMS:
+    prev_speed = None
+    prev_steering_angle = None 
+    prev_steps = None
+    prev_direction_diff = None
+
+class Vehicle:
+    def __init__(self):
+        self.speed = 0
+        self.position = (0, 0)
+        self.direction = 0  # Angle in degrees
+        self.track = []  # List of track points
+        self.sharp_corner_threshold = 30  # Example threshold for sharp corners
+
+    def detect_sharp_corner(self):
+        current_position_index = self.track.index(self.position)
+        if current_position_index < len(self.track) - 1:
+            next_position = self.track[current_position_index + 1]
+            curvature = self.calculate_curvature(self.position, next_position)
+            if curvature > self.sharp_corner_threshold:
+                return True
+        return False
+
+    def calculate_curvature(self, pos1, pos2):
+        return abs(pos2[0] - pos1[0]) + abs(pos2[1] - pos1[1])
+
+    def calculate_turning_angle(self, current_direction, desired_direction):
+        angle_diff = desired_direction - current_direction
+        if angle_diff > 180:
+            angle_diff -= 360
+        elif angle_diff < -180:
+            angle_diff += 360
+        return max(min(angle_diff, 30), -30)
+
+    def adjust_speed_for_corner(self):
+        if self.detect_sharp_corner():
+            self.speed = max(self.speed - 10, 0)  # Slow down
+        else:
+            self.speed = min(self.speed + 5, 100)  # Speed up
+
+    def update_position(self):
+        current_position_index = self.track.index(self.position)
+        if current_position_index < len(self.track) - 1:
+            next_position = self.track[current_position_index + 1]
+            desired_direction = math.degrees(math.atan2(next_position[1] - self.position[1], next_position[0] - self.position[0]))
+            turning_angle = self.calculate_turning_angle(self.direction, desired_direction)
+            self.direction += turning_angle
+            self.position = next_position
+
+    def run(self):
+        while True:
+            self.adjust_speed_for_corner()
+            self.update_position()
+            # Additional logic for running the vehicle
+
+# Main logic
+if __name__ == "__main__":
+    vehicle = Vehicle()
+    vehicle.track = [(0, 0), (10, 10), (20, 30), (30, 50)]  # Example track points
+    vehicle.run()
+
 
 class PARAMS:
     prev_speed = None
@@ -13,6 +77,50 @@ class PARAMS:
     prev_normalized_distance_from_route = None
     unpardonable_action = False
     intermediate_progress = [0] * 11
+
+class Vehicle:
+    def __init__(self):
+        self.speed = 0
+        self.position = (0, 0)
+        self.track = []  # List of track points
+        self.sharp_corner_threshold = 30  # Example threshold for sharp corners
+
+    def detect_sharp_corner(self):
+        # Logic to detect sharp corners based on the track's curvature
+        # This is a placeholder implementation
+        current_position_index = self.track.index(self.position)
+        if current_position_index < len(self.track) - 1:
+            next_position = self.track[current_position_index + 1]
+            curvature = self.calculate_curvature(self.position, next_position)
+            if curvature > self.sharp_corner_threshold:
+                return True
+        return False
+
+    def calculate_curvature(self, pos1, pos2):
+        # Placeholder function to calculate curvature between two points
+        # This should be replaced with actual curvature calculation logic
+        return abs(pos2[0] - pos1[0]) + abs(pos2[1] - pos1[1])
+
+    def adjust_speed_for_corner(self):
+        if self.detect_sharp_corner():
+            self.speed = max(self.speed - 10, 0)  # Slow down
+        else:
+            self.speed = min(self.speed + 5, 100)  # Speed up
+
+    def update_position(self):
+        # Logic to update the vehicle's position
+        pass
+
+    def run(self):
+        while True:
+            self.adjust_speed_for_corner()
+            self.update_position()
+            if self.detect_sharp_corner():
+                # Adjust steering angle for sharp corner
+                pass
+            else:
+                # Continue driving
+                pass
 
 def reward_function(params):
 
