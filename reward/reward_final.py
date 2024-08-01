@@ -3,10 +3,7 @@ import math
 #TODO-work on slowing down in sharp corners amd adjusting to take them, then run faster after taking the sharp corner
 #TODO-work on getting a dynamic and accurate turning angle for left and right turns with a max of 30 degrees either way for a route with some sharp corners
 #TODO- Make an accurate track completion first a priority before working on the speed and other factors
-
-#Vehicle class
-import math
-
+#TODO- Fix constant off-roading when approaching more than one sharp corners which are close to each other
 class PARAMS:
     prev_speed = None
     prev_steering_angle = None 
@@ -60,67 +57,57 @@ class Vehicle:
         while True:
             self.adjust_speed_for_corner()
             self.update_position()
-            # Additional logic for running the vehicle
 
-# Main logic
-if __name__ == "__main__":
-    vehicle = Vehicle()
-    vehicle.track = [(0, 0), (10, 10), (20, 30), (30, 50)]  # Example track points
-    vehicle.run()
+    
+def calculate_turning_angle(current_position, next_position):
+    """
+    Calculate the turning angle between the current position and the next position.
+    """
+    delta_x = next_position[0] - current_position[0]
+    delta_y = next_position[1] - current_position[1]
+    angle = math.degrees(math.atan2(delta_y, delta_x))
+    return angle
+
+def adjust_speed_for_corner(current_speed, turning_angle, consecutive_sharp_turns):
+    """
+    Adjust the speed based on the turning angle and the presence of consecutive sharp turns.
+    """
+    if consecutive_sharp_turns:
+        return max(current_speed * 0.3, 1)  # Slow down more aggressively if multiple sharp turns
+    elif abs(turning_angle) > 20:  # Assuming sharp corner if angle > 20 degrees
+        return max(current_speed * 0.5, 1)  # Slow down to half speed, but not less than 1
+    return current_speed
+
+def detect_consecutive_sharp_turns(waypoints, current_index, threshold=20):
+    """
+    Detect if there are consecutive sharp turns in the upcoming waypoints.
+    """
+    consecutive_sharp_turns = False
+    for i in range(current_index, min(current_index + 3, len(waypoints) - 1)):
+        angle = calculate_turning_angle(waypoints[i], waypoints[i + 1])
+        if abs(angle) > threshold:
+            consecutive_sharp_turns = True
+            break
+    return consecutive_sharp_turns
 
 
-class PARAMS:
-    prev_speed = None
-    prev_steering_angle = None 
-    prev_steps = None
-    prev_direction_diff = None
-    prev_normalized_distance_from_route = None
-    unpardonable_action = False
-    intermediate_progress = [0] * 11
 
-class Vehicle:
-    def __init__(self):
-        self.speed = 0
-        self.position = (0, 0)
-        self.track = []  # List of track points
-        self.sharp_corner_threshold = 30  # Example threshold for sharp corners
+def calculate_turning_angle(current_position, next_position):
+    """
+    Calculate the turning angle between the current position and the next position.
+    """
+    delta_x = next_position[0] - current_position[0]
+    delta_y = next_position[1] - current_position[1]
+    angle = math.degrees(math.atan2(delta_y, delta_x))
+    return angle
 
-    def detect_sharp_corner(self):
-        # Logic to detect sharp corners based on the track's curvature
-        # This is a placeholder implementation
-        current_position_index = self.track.index(self.position)
-        if current_position_index < len(self.track) - 1:
-            next_position = self.track[current_position_index + 1]
-            curvature = self.calculate_curvature(self.position, next_position)
-            if curvature > self.sharp_corner_threshold:
-                return True
-        return False
-
-    def calculate_curvature(self, pos1, pos2):
-        # Placeholder function to calculate curvature between two points
-        # This should be replaced with actual curvature calculation logic
-        return abs(pos2[0] - pos1[0]) + abs(pos2[1] - pos1[1])
-
-    def adjust_speed_for_corner(self):
-        if self.detect_sharp_corner():
-            self.speed = max(self.speed - 10, 0)  # Slow down
-        else:
-            self.speed = min(self.speed + 5, 100)  # Speed up
-
-    def update_position(self):
-        # Logic to update the vehicle's position
-        pass
-
-    def run(self):
-        while True:
-            self.adjust_speed_for_corner()
-            self.update_position()
-            if self.detect_sharp_corner():
-                # Adjust steering angle for sharp corner
-                pass
-            else:
-                # Continue driving
-                pass
+def adjust_speed_for_corner(current_speed, turning_angle):
+    """
+    Adjust the speed based on the turning angle.
+    """
+    if abs(turning_angle) > 20:  # Assuming sharp corner if angle > 20 degrees
+        return max(current_speed * 0.5, 1)  # Slow down to half speed, but not less than 1
+    return current_speed  # Maintain the current speed`
 
 def reward_function(params):
 
