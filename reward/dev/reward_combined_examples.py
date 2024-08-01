@@ -1,19 +1,5 @@
 def reward_function(params):
-    '''
-    Reward function for AWS DeepRacer
 
-    This reward function was used on some of our initial models, in lieu of 
-    reward_simple.py. The first part of the function originates from Juv Chan's 
-    article, "Train a Viable Model in 45 minutes for AWS DeepRacer Beginner 
-    Challenge Virtual Community Race 2020", who wrote a conglomerate of the AWS
-    DeepRacer example reward functions. The second part of the function uses
-    waypoints to identify a target heading and incentivise the vehicle towards
-    it, similar to reward_extended.py.
-    
-    Team: IndestruciRacer
-    Authors: Georgia Markham, Matthew Suntup, Ashan Abey
-    August 2020
-    '''
 
     import math
 
@@ -75,14 +61,12 @@ def reward_function(params):
                                              point_prev[0] - point_future[0]))
 
     # Circular Heading Calculations
-    if heading_current > heading_future and 
-       heading_current - heading_future > 180:
+    if heading_current > heading_future and heading_current - heading_future > 180:
         heading_offset = 180-heading_current
         heading_current = -180
         heading_future += heading_offset
 
-    elif heading_future > heading_current and 
-         heading_future - heading_current > 180:
+    elif heading_future > heading_current and heading_future - heading_current > 180:
         heading_offset = 180-heading_future
         heading_future = -180
         heading_current += heading_offset

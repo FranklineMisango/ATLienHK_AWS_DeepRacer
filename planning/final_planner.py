@@ -2,7 +2,7 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 
-TRACK_FILE = "Spain_track.npy"
+TRACK_FILE = "/workspaces/ATLienHK_AWS_DeepRacer/planning/Spain_track.npy"
 
 # Parameters for Speed Incentive
 FUTURE_STEP_SPEED = 6

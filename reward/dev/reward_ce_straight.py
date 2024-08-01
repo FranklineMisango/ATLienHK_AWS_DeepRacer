@@ -1,16 +1,4 @@
 def reward_function(params):
-    '''
-    Reward function for AWS DeepRacer
-
-    This reward function builds on the reward_combined_examples.py function to
-    incorporate corner identification similar to that which can be seen in
-    the reward_qualifier.py and reward_final.py functions.
-    
-    Team: IndestruciRacer
-    Authors: Georgia Markham, Matthew Suntup, Ashan Abey
-    August 2020
-    '''
-
     import math
 
     # Read input parameters

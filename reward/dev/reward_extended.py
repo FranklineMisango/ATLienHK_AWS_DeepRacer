@@ -1,22 +1,4 @@
-def reward_function(params):
-    '''
-    Reward function for AWS DeepRacer
-
-    This reward function was experimented with when we first considered using
-    waypoints to predict turns in the future. This function calculates a target
-    heading using two base headings, AB and BC, where point A is the car's
-    current position and point B and C are some waypoints ahead of the car.
-    After using this function we found this was much less reliable than
-    identifying corners by comparing the orientation of the track ahead with
-    the orientation of the current track (using the two closest waypoints) and
-    avoiding considering the exact position of the car. This concept was
-    implemented in future reward functions.
-    
-    Team: IndestruciRacer
-    Authors: Matthew Suntup, Georgia Markham, Ashan Abey
-    August 2020
-    '''
-    
+def reward_function(params):    
     import math
     import numpy as np
     
