@@ -20,7 +20,6 @@ def reward_function(params):
     DIRECTION_DIFF_THRESHOLD_1 = 10
     DIRECTION_DIFF_THRESHOLD_2 = 5
     STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER = 2
-    SHARP_CORNER_SPEED = 0.8  # Minimum speed for sharp corners
     MAX_REWARD = 1e3
 
     # Read input parameters
@@ -167,6 +166,7 @@ def reward_function(params):
     return total_reward
 
 def calculate_speed_reward(speed, min_speed, max_speed):
+    SHARP_CORNER_SPEED = 0.8  # Minimum speed for sharp corners
     if speed < SHARP_CORNER_SPEED:
         return 0.1  # Penalize low speeds, including sharp corners
     elif speed > max_speed:
