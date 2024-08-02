@@ -1,9 +1,7 @@
 import math
 
-#TODO-work on slowing down in sharp corners amd adjusting to take them, then run faster after taking the sharp corner
-#TODO-work on getting a dynamic and accurate turning angle for left and right turns with a max of 30 degrees either way for a route with some sharp corners
-#TODO- Make an accurate track completion first a priority before working on the speed and other factors
-#TODO- Fix constant off-roading when approaching more than one sharp corners which are close to each other
+#TODO-If any of the defined unpardonable actions is taken more than one by the car, reduce reward maximumly and get it back only when they corrects
+
 class PARAMS:
     prev_speed = None
     prev_steering_angle = None 
@@ -89,25 +87,6 @@ def detect_consecutive_sharp_turns(waypoints, current_index, threshold=20):
             consecutive_sharp_turns = True
             break
     return consecutive_sharp_turns
-
-
-
-def calculate_turning_angle(current_position, next_position):
-    """
-    Calculate the turning angle between the current position and the next position.
-    """
-    delta_x = next_position[0] - current_position[0]
-    delta_y = next_position[1] - current_position[1]
-    angle = math.degrees(math.atan2(delta_y, delta_x))
-    return angle
-
-def adjust_speed_for_corner(current_speed, turning_angle):
-    """
-    Adjust the speed based on the turning angle.
-    """
-    if abs(turning_angle) > 20:  # Assuming sharp corner if angle > 20 degrees
-        return max(current_speed * 0.5, 1)  # Slow down to half speed, but not less than 1
-    return current_speed  # Maintain the current speed`
 
 def reward_function(params):
 
@@ -229,9 +208,6 @@ def reward_function(params):
     SC = 10 * speed_reward * speed_maintain_bonus * speed_increase_bonus
     # Immediate component of reward
     IC = (HC + DC + SC) ** 2 + (HC * DC * SC)
-    # If an unpardonable action is taken, then the immediate reward is 0
-    if PARAMS.unpardonable_action:
-        IC = 1e-3
     # Long term component of reward
     intermediate_progress_bonus = calculate_intermediate_progress_bonus(progress, steps)
     LC = curve_bonus + intermediate_progress_bonus + straight_section_bonus
