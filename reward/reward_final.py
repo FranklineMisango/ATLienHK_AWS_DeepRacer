@@ -1,6 +1,8 @@
 import math
 
-#TODO-If any of the defined unpardonable actions is taken more than one by the car, reduce reward maximumly and get it back only when they corrects
+#TODO - Work on ensuring the car is straight when on a straight road and not rotate on the road, I am observing a lot of rotations and veering off
+#TODO - Ensure the car prioritizes finishing the track first and understanding it first, before utilizing speed to finish faster
+
 
 class PARAMS:
     prev_speed = None
@@ -87,7 +89,7 @@ def detect_consecutive_sharp_turns(waypoints, current_index, threshold=20):
             consecutive_sharp_turns = True
             break
     return consecutive_sharp_turns
-
+    
 def reward_function(params):
 
     #Constants
