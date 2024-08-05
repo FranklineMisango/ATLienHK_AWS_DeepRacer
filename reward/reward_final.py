@@ -58,6 +58,23 @@ class Vehicle:
             self.adjust_speed_for_corner()
             self.update_position()
 
+    def is_straight_road(self):
+        current_position_index = self.track.index(self.position)
+        if current_position_index < len(self.track) - 1:
+            next_position = self.track[current_position_index + 1]
+            curvature = self.calculate_curvature(self.position, next_position)
+            return curvature == 0
+        return False
+
+    def adjust_steering(self):
+        if self.is_straight_road():
+            self.direction = 0  # Keep the car straight
+
+    def adjust_speed(self):
+        if self.detect_sharp_corner():
+            self.speed = self.min_speed
+        else:
+            self.speed = self.max_speed
     
 def calculate_turning_angle(current_position, next_position):
     """
