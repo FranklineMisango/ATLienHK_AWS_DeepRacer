@@ -1,123 +1,21 @@
 import math
 
-#TODO - Work on ensuring the car is straight when on a straight road and not rotate on the road, I am observing a lot of rotations and veering off
-#TODO - Ensure the car prioritizes finishing the track first and understanding it first, before utilizing speed to finish faster
-
-
 class PARAMS:
     prev_speed = None
-    prev_steering_angle = None 
+    prev_steering_angle = None
     prev_steps = None
     prev_direction_diff = None
 
-class Vehicle:
-    def __init__(self):
-        self.speed = 0
-        self.position = (0, 0)
-        self.direction = 0  # Angle in degrees
-        self.track = []  # List of track points
-        self.sharp_corner_threshold = 30  # Example threshold for sharp corners
-
-    def detect_sharp_corner(self):
-        current_position_index = self.track.index(self.position)
-        if current_position_index < len(self.track) - 1:
-            next_position = self.track[current_position_index + 1]
-            curvature = self.calculate_curvature(self.position, next_position)
-            if curvature > self.sharp_corner_threshold:
-                return True
-        return False
-
-    def calculate_curvature(self, pos1, pos2):
-        return abs(pos2[0] - pos1[0]) + abs(pos2[1] - pos1[1])
-
-    def calculate_turning_angle(self, current_direction, desired_direction):
-        angle_diff = desired_direction - current_direction
-        if angle_diff > 180:
-            angle_diff -= 360
-        elif angle_diff < -180:
-            angle_diff += 360
-        return max(min(angle_diff, 30), -30)
-
-    def adjust_speed_for_corner(self):
-        if self.detect_sharp_corner():
-            self.speed = max(self.speed - 10, 0)  # Slow down
-        else:
-            self.speed = min(self.speed + 5, 100)  # Speed up
-
-    def update_position(self):
-        current_position_index = self.track.index(self.position)
-        if current_position_index < len(self.track) - 1:
-            next_position = self.track[current_position_index + 1]
-            desired_direction = math.degrees(math.atan2(next_position[1] - self.position[1], next_position[0] - self.position[0]))
-            turning_angle = self.calculate_turning_angle(self.direction, desired_direction)
-            self.direction += turning_angle
-            self.position = next_position
-
-    def run(self):
-        while True:
-            self.adjust_speed_for_corner()
-            self.update_position()
-
-    def is_straight_road(self):
-        current_position_index = self.track.index(self.position)
-        if current_position_index < len(self.track) - 1:
-            next_position = self.track[current_position_index + 1]
-            curvature = self.calculate_curvature(self.position, next_position)
-            return curvature == 0
-        return False
-
-    def adjust_steering(self):
-        if self.is_straight_road():
-            self.direction = 0  # Keep the car straight
-
-    def adjust_speed(self):
-        if self.detect_sharp_corner():
-            self.speed = self.min_speed
-        else:
-            self.speed = self.max_speed
-    
-def calculate_turning_angle(current_position, next_position):
-    """
-    Calculate the turning angle between the current position and the next position.
-    """
-    delta_x = next_position[0] - current_position[0]
-    delta_y = next_position[1] - current_position[1]
-    angle = math.degrees(math.atan2(delta_y, delta_x))
-    return angle
-
-def adjust_speed_for_corner(current_speed, turning_angle, consecutive_sharp_turns):
-    """
-    Adjust the speed based on the turning angle and the presence of consecutive sharp turns.
-    """
-    if consecutive_sharp_turns:
-        return max(current_speed * 0.3, 1)  # Slow down more aggressively if multiple sharp turns
-    elif abs(turning_angle) > 20:  # Assuming sharp corner if angle > 20 degrees
-        return max(current_speed * 0.5, 1)  # Slow down to half speed, but not less than 1
-    return current_speed
-
-def detect_consecutive_sharp_turns(waypoints, current_index, threshold=20):
-    """
-    Detect if there are consecutive sharp turns in the upcoming waypoints.
-    """
-    consecutive_sharp_turns = False
-    for i in range(current_index, min(current_index + 3, len(waypoints) - 1)):
-        angle = calculate_turning_angle(waypoints[i], waypoints[i + 1])
-        if abs(angle) > threshold:
-            consecutive_sharp_turns = True
-            break
-    return consecutive_sharp_turns
-    
 def reward_function(params):
-
-    #Constants
-    SPEED_INCREASE_BONUS_DEFAULT = 2
+    # Constants
+    SPEED_INCREASE_BONUS_DEFAULT = 10 #Changed from 2 to 10
     OFF_TRACK_PENALTY_THRESHOLD = 0.5
     OFF_TRACK_PENALTY_MIN = 0.1
     HEADING_DECREASE_BONUS_MAX = 10
     DIRECTION_DIFF_THRESHOLD_1 = 10
     DIRECTION_DIFF_THRESHOLD_2 = 5
     STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER = 2
-    
+
     # Read input parameters
     heading = params['heading']
     distance_from_center = params['distance_from_center']
@@ -159,16 +57,23 @@ def reward_function(params):
     has_speed_dropped = PARAMS.prev_speed is not None and PARAMS.prev_speed > speed
 
     # Define the minimum and maximum speeds
-    min_speed = 1.5
+    min_speed = 2.0
     max_speed = 4.0
 
     # Calculate the speed reward
-    speed_reward = calculate_speed_reward(speed, min_speed, max_speed)
+    if speed < min_speed:
+        speed_reward = 0.1  # Penalize low speedsSPEED_INCREASE_BONUS_DEFAULT 
+    elif speed > max_speed:
+        speed_reward = 1.0  # Maximum reward for speeds above the maximum
+    else:
+        speed_reward = (speed - min_speed) / (max_speed - min_speed)  # Reward higher speeds proportionally
 
     # Penalize slowing down without a valid reason on straight roads
     speed_maintain_bonus = 1
     if has_speed_dropped and not is_turn_upcoming:
-        speed_maintain_bonus = min(speed / max(PARAMS.prev_speed, min_speed), 1)
+        speed_diff = speed - PARAMS.prev_speed
+        if speed_diff < 0:  # If speed decreased
+            speed_maintain_bonus = max(speed / max(PARAMS.prev_speed, 1), 0.5)  # Allow slower deceleration
 
     # Check if the speed has increased - provide additional rewards
     has_speed_increased = PARAMS.prev_speed is not None and PARAMS.prev_speed < speed
@@ -183,7 +88,7 @@ def reward_function(params):
 
     # Penalize making the heading direction worse
     heading_bonus = 0
-    direction_diff = calculate_direction_diff(heading, vehicle_x, vehicle_y, next_point)
+    direction_diff = params['heading']
     if PARAMS.prev_direction_diff is not None and is_heading_in_right_direction:
         if abs(PARAMS.prev_direction_diff / direction_diff) > 1:
             heading_bonus = min(HEADING_DECREASE_BONUS_MAX, abs(PARAMS.prev_direction_diff / direction_diff))
@@ -215,10 +120,8 @@ def reward_function(params):
     PARAMS.prev_normalized_distance_from_route = normalized_distance_from_route
 
     # Calculate rewards
-    heading_reward = calculate_heading_reward(heading, vehicle_x, vehicle_y, next_point)
+    heading_reward = params['heading']
     distance_reward = calculate_distance_reward(bearing, normalized_car_distance_from_route, normalized_route_distance_from_inner_border, normalized_route_distance_from_outer_border)
-    speed_reward = speed_reward
-
     # Heading component of reward
     HC = 10 * heading_reward * steering_angle_maintain_bonus
     # Distance component of reward
@@ -251,17 +154,6 @@ def reward_function(params):
     total_reward = min(total_reward, MAX_REWARD)
 
     return total_reward
-
-def calculate_speed_reward(speed, min_speed, max_speed):
-    
-    if speed < min_speed:
-        return 0.1  # Penalize low speeds
-    elif speed > max_speed:
-        return 1.0  # Maximum reward for speeds above the maximum
-    else:
-        return (speed - min_speed) / (max_speed - min_speed)  # Reward higher speeds proportionally
-
-
 
 def calculate_distance_reward(bearing, normalized_car_distance_from_route, normalized_route_distance_from_inner_border, normalized_route_distance_from_outer_border):
     distance_reward = 0
