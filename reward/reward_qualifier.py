@@ -1,13 +1,5 @@
 import math
 
-#TODO-work on slowing down in sharp corners amd adjusting to take them, then run faster after taking the sharp corner
-#TODO-work on getting a dynamic and accurate turning angle for left and right turns with a max of 30 degrees either way for a route with some sharp corners
-#TODO- Make an accurate track completion first a priority before working on the speed and other factors
-#TODO- Fix constant off-roading when approaching more than one sharp corners which are close to each other
-#TODO - Make sure the speed is not below 0.8 at any case 
-#TODO - Make sure the car is not off track at any point
-#TODO - Revamp the reward section code to have this corrections 
-
 class PARAMS:
     prev_speed = None
     prev_steering_angle = None 
@@ -19,7 +11,7 @@ class PARAMS:
 
 def reward_function(params):
 
-    #Constants
+    # Constants
     SPEED_INCREASE_BONUS_DEFAULT = 2
     OFF_TRACK_PENALTY_THRESHOLD = 0.5
     OFF_TRACK_PENALTY_MIN = 0.1
@@ -27,6 +19,7 @@ def reward_function(params):
     DIRECTION_DIFF_THRESHOLD_1 = 10
     DIRECTION_DIFF_THRESHOLD_2 = 5
     STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER = 2
+    MAX_REWARD = 1e3
     
     # Read input parameters
     heading = params['heading']
@@ -51,9 +44,6 @@ def reward_function(params):
     all_wheels_on_track = params['all_wheels_on_track']
     wheels_on_track = params.get('wheels_on_track', 4)  # Assuming 4 wheels by default
 
-    # Define a safety limit for reward to avoid excessive values
-    MAX_REWARD = 1e3
-
     # Calculate the next waypoint
     next_point = waypoints[closest_waypoints[1]]
 
@@ -69,7 +59,7 @@ def reward_function(params):
     has_speed_dropped = PARAMS.prev_speed is not None and PARAMS.prev_speed > speed
 
     # Define the minimum and maximum speeds
-    min_speed = 1.5
+    min_speed = 0.8  # Adjusted to match the TODO comment
     max_speed = 4.0
 
     # Calculate the speed reward
@@ -148,6 +138,9 @@ def reward_function(params):
     if progress == 100:
         LC += 500  # Large bonus for finishing the track
 
+    # Initialize total_reward before sharp corner logic
+    total_reward = IC + LC
+
     # Sharp corner logic: allow up to three wheels off track
     if is_turn_upcoming:
         if wheels_on_track < 1:
@@ -158,7 +151,7 @@ def reward_function(params):
         if not all_wheels_on_track:
             total_reward = 1e-3  # Heavy penalty if not all wheels are on track
 
-    total_reward = max(IC + LC, 1e-3) * off_track_penalty
+    total_reward = max(total_reward, 1e-3) * off_track_penalty
 
     # Apply a cap to the reward to avoid excessive values
     total_reward = min(total_reward, MAX_REWARD)
@@ -166,15 +159,12 @@ def reward_function(params):
     return total_reward
 
 def calculate_speed_reward(speed, min_speed, max_speed):
-    
     if speed < min_speed:
         return 0.1  # Penalize low speeds
     elif speed > max_speed:
         return 1.0  # Maximum reward for speeds above the maximum
     else:
         return (speed - min_speed) / (max_speed - min_speed)  # Reward higher speeds proportionally
-
-
 
 def calculate_distance_reward(bearing, normalized_car_distance_from_route, normalized_route_distance_from_inner_border, normalized_route_distance_from_outer_border):
     distance_reward = 0
