@@ -1,5 +1,67 @@
 import math
 
+##action space 
+{
+  "action_space": [
+    {"steering_angle": -30.0, "speed": 0.5},
+    {"steering_angle": -27.5, "speed": 0.5},
+    {"steering_angle": -25.0, "speed": 0.5},
+    {"steering_angle": -22.5, "speed": 0.5},
+    {"steering_angle": -20.0, "speed": 0.5},
+    {"steering_angle": -17.5, "speed": 0.5},
+    {"steering_angle": -15.0, "speed": 0.5},
+    {"steering_angle": -12.5, "speed": 0.5},
+    {"steering_angle": -10.0, "speed": 0.5},
+    {"steering_angle": -7.5, "speed": 0.5},
+    {"steering_angle": -5.0, "speed": 0.5},
+    {"steering_angle": -2.5, "speed": 0.5},
+    {"steering_angle": 0.0, "speed": 0.5},
+    {"steering_angle": 2.5, "speed": 0.5},
+    {"steering_angle": 5.0, "speed": 0.5},
+    {"steering_angle": 7.5, "speed": 0.5},
+    {"steering_angle": 10.0, "speed": 0.5},
+    {"steering_angle": 12.5, "speed": 0.5},
+    {"steering_angle": 15.0, "speed": 0.5},
+    {"steering_angle": 17.5, "speed": 0.5},
+    {"steering_angle": 20.0, "speed": 0.5},
+    {"steering_angle": 22.5, "speed": 0.5},
+    {"steering_angle": 25.0, "speed": 0.5},
+    {"steering_angle": 27.5, "speed": 0.5},
+    {"steering_angle": 30.0, "speed": 0.5},
+    {"steering_angle": -30.0, "speed": 1.0},
+    {"steering_angle": -27.5, "speed": 1.0},
+    {"steering_angle": -25.0, "speed": 1.0},
+    {"steering_angle": -22.5, "speed": 1.0},
+    {"steering_angle": -20.0, "speed": 1.0},
+    {"steering_angle": -17.5, "speed": 1.0},
+    {"steering_angle": -15.0, "speed": 1.0},
+    {"steering_angle": -12.5, "speed": 1.0},
+    {"steering_angle": -10.0, "speed": 1.0},
+    {"steering_angle": -7.5, "speed": 1.0},
+    {"steering_angle": -5.0, "speed": 1.0},
+    {"steering_angle": -2.5, "speed": 1.0},
+    {"steering_angle": 0.0, "speed": 1.0},
+    {"steering_angle": 2.5, "speed": 1.0},
+    {"steering_angle": 5.0, "speed": 1.0},
+    {"steering_angle": 7.5, "speed": 1.0},
+    {"steering_angle": 10.0, "speed": 1.0},
+    {"steering_angle": 12.5, "speed": 1.0},
+    {"steering_angle": 15.0, "speed": 1.0},
+    {"steering_angle": 17.5, "speed": 1.0},
+    {"steering_angle": 20.0, "speed": 1.0},
+    {"steering_angle": 22.5, "speed": 1.0},
+    {"steering_angle": 25.0, "speed": 1.0},
+    {"steering_angle": 27.5, "speed": 1.0},
+    {"steering_angle": 30.0, "speed": 1.0}
+  ],
+  "sensor": ["FRONT_FACING_CAMERA"],
+  "neural_network": "DEEP_CONVOLUTIONAL_NETWORK_SHALLOW",
+  "training_algorithm": "clipped_ppo",
+  "action_space_type": "discrete",
+  "version": "6"
+}
+import math
+
 class PARAMS:
     prev_speed = None
     prev_steering_angle = None 
@@ -20,7 +82,8 @@ def reward_function(params):
     DIRECTION_DIFF_THRESHOLD_2 = 5
     STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER = 2
     MAX_REWARD = 1e3
-    
+    OPTIMAL_SPEED = 2.0  # Optimal speed for exponential reward
+
     # Read input parameters
     heading = params['heading']
     distance_from_center = params['distance_from_center']
@@ -59,11 +122,11 @@ def reward_function(params):
     has_speed_dropped = PARAMS.prev_speed is not None and PARAMS.prev_speed > speed
 
     # Define the minimum and maximum speeds
-    min_speed = 0.8  # Adjusted to match the TODO comment
+    min_speed = 0.5  # Adjusted to match the updated action space
     max_speed = 4.0
 
     # Calculate the speed reward
-    speed_reward = calculate_speed_reward(speed, min_speed, max_speed)
+    speed_reward = calculate_speed_reward(speed, min_speed, max_speed, OPTIMAL_SPEED)
 
     # Penalize slowing down without a valid reason on straight roads
     speed_maintain_bonus = 1
@@ -158,13 +221,15 @@ def reward_function(params):
 
     return total_reward
 
-def calculate_speed_reward(speed, min_speed, max_speed):
+def calculate_speed_reward(speed, min_speed, max_speed, optimal_speed):
     if speed < min_speed:
         return 0.1  # Penalize low speeds
     elif speed > max_speed:
-        return 1.0  # Maximum reward for speeds above the maximum
+        return 0.5  # Penalize speeds above the maximum
+    elif speed <= optimal_speed:
+        return (speed - min_speed) / (optimal_speed - min_speed)  # Reward higher speeds up to optimal speed
     else:
-        return (speed - min_speed) / (max_speed - min_speed)  # Reward higher speeds proportionally
+        return (max_speed - speed) / (max_speed - optimal_speed)  # Penalize speeds above optimal speed
 
 def calculate_distance_reward(bearing, normalized_car_distance_from_route, normalized_route_distance_from_inner_border, normalized_route_distance_from_outer_border):
     distance_reward = 0
@@ -219,8 +284,8 @@ def calculate_heading_reward(heading, vehicle_x, vehicle_y, next_point):
     direction_diff = route_direction - heading
     # Check that the direction_diff is in valid range
     # Then compute the heading reward
-    heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 10
+    heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 4  # Adjusted exponent for balance
     if abs(direction_diff) <= 20:
-        heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 4
+        heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 2  # Adjusted exponent for balance
 
     return heading_reward

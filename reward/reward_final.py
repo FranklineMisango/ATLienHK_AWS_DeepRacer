@@ -1,5 +1,13 @@
 import math
 
+# Constants
+SPEED_INCREASE_BONUS_DEFAULT = 10
+OFF_TRACK_PENALTY_THRESHOLD = 0.5
+OFF_TRACK_PENALTY_MIN = 0.1
+HEADING_DECREASE_BONUS_MAX = 10
+DIRECTION_DIFF_THRESHOLD_1 = 10
+DIRECTION_DIFF_THRESHOLD_2 = 5
+STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER = 2
 class PARAMS:
     prev_speed = None
     prev_steering_angle = None
@@ -7,14 +15,7 @@ class PARAMS:
     prev_direction_diff = None
 
 def reward_function(params):
-    # Constants
-    SPEED_INCREASE_BONUS_DEFAULT = 10 #Changed from 2 to 10
-    OFF_TRACK_PENALTY_THRESHOLD = 0.5
-    OFF_TRACK_PENALTY_MIN = 0.1
-    HEADING_DECREASE_BONUS_MAX = 10
-    DIRECTION_DIFF_THRESHOLD_1 = 10
-    DIRECTION_DIFF_THRESHOLD_2 = 5
-    STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER = 2
+
 
     # Read input parameters
     heading = params['heading']
@@ -37,7 +38,7 @@ def reward_function(params):
     curve_bonus = params.get('curve_bonus', 0)
     straight_section_bonus = params.get('straight_section_bonus', 0)
     all_wheels_on_track = params['all_wheels_on_track']
-    wheels_on_track = params.get('wheels_on_track', 4)  # Assuming 4 wheels by default
+    wheels_on_track = params.get('wheels_on_track', 4)
 
     # Define a safety limit for reward to avoid excessive values
     MAX_REWARD = 1e3
@@ -56,24 +57,14 @@ def reward_function(params):
     # Check if the speed has decreased
     has_speed_dropped = PARAMS.prev_speed is not None and PARAMS.prev_speed > speed
 
-    # Define the minimum and maximum speeds
-    min_speed = 2.0
-    max_speed = 4.0
+    # Adaptive speed thresholds
+    min_speed, max_speed = calculate_adaptive_speed_thresholds(is_turn_upcoming)
 
     # Calculate the speed reward
-    if speed < min_speed:
-        speed_reward = 0.1  # Penalize low speedsSPEED_INCREASE_BONUS_DEFAULT 
-    elif speed > max_speed:
-        speed_reward = 1.0  # Maximum reward for speeds above the maximum
-    else:
-        speed_reward = (speed - min_speed) / (max_speed - min_speed)  # Reward higher speeds proportionally
+    speed_reward = calculate_speed_reward(speed, min_speed, max_speed)
 
     # Penalize slowing down without a valid reason on straight roads
-    speed_maintain_bonus = 1
-    if has_speed_dropped and not is_turn_upcoming:
-        speed_diff = speed - PARAMS.prev_speed
-        if speed_diff < 0:  # If speed decreased
-            speed_maintain_bonus = max(speed / max(PARAMS.prev_speed, 1), 0.5)  # Allow slower deceleration
+    speed_maintain_bonus = calculate_speed_maintain_bonus(has_speed_dropped, speed, PARAMS.prev_speed, is_turn_upcoming)
 
     # Check if the speed has increased - provide additional rewards
     has_speed_increased = PARAMS.prev_speed is not None and PARAMS.prev_speed < speed
@@ -97,14 +88,7 @@ def reward_function(params):
     has_steering_angle_changed = PARAMS.prev_steering_angle is not None and not math.isclose(PARAMS.prev_steering_angle, steering_angle)
 
     # Not changing the steering angle is good if heading in the right direction
-    steering_angle_maintain_bonus = 1
-    if is_heading_in_right_direction and not has_steering_angle_changed:
-        if abs(direction_diff) < DIRECTION_DIFF_THRESHOLD_1:
-            steering_angle_maintain_bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
-        if abs(direction_diff) < DIRECTION_DIFF_THRESHOLD_2:
-            steering_angle_maintain_bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
-        if PARAMS.prev_direction_diff is not None and abs(PARAMS.prev_direction_diff) > abs(direction_diff):
-            steering_angle_maintain_bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
+    steering_angle_maintain_bonus = calculate_steering_angle_reward(is_heading_in_right_direction, has_steering_angle_changed, direction_diff)
 
     # Reward reducing distance to the race line
     distance_reduction_bonus = 1
@@ -136,17 +120,17 @@ def reward_function(params):
 
     # Incentive for finishing the track
     if progress == 100:
-        LC += 500  # Large bonus for finishing the track
+        LC += 500
 
     # Sharp corner logic: allow up to three wheels off track
     if is_turn_upcoming:
         if wheels_on_track < 1:
-            total_reward = 1e-3  # Heavy penalty if all wheels are off track
+            total_reward = 1e-3
         elif wheels_on_track < 4:
-            total_reward *= 0.5  # Moderate penalty if up to three wheels are off track
+            total_reward *= 0.5
     else:
         if not all_wheels_on_track:
-            total_reward = 1e-3  # Heavy penalty if not all wheels are on track
+            total_reward = 1e-3
 
     total_reward = max(IC + LC, 1e-3) * off_track_penalty
 
@@ -155,15 +139,47 @@ def reward_function(params):
 
     return total_reward
 
+def calculate_speed_reward(speed, min_speed, max_speed):
+    if speed < min_speed:
+        return 0.1
+    elif speed > max_speed:
+        return 1.0
+    else:
+        return (speed - min_speed) / (max_speed - min_speed)
+
+def calculate_speed_maintain_bonus(has_speed_dropped, speed, prev_speed, is_turn_upcoming):
+    if has_speed_dropped and not is_turn_upcoming:
+        speed_diff = speed - prev_speed
+        if speed_diff < 0:
+            return max(speed / max(prev_speed, 1), 0.5)
+    return 1
+
+def calculate_adaptive_speed_thresholds(is_turn_upcoming):
+    if is_turn_upcoming:
+        return 1.5, 3.0
+    else:
+        return 2.0, 4.0
+
+def calculate_steering_angle_reward(is_heading_in_right_direction, has_steering_angle_changed, direction_diff):
+    bonus = 1
+    if is_heading_in_right_direction and not has_steering_angle_changed:
+        if abs(direction_diff) < DIRECTION_DIFF_THRESHOLD_1:
+            bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
+        if abs(direction_diff) < DIRECTION_DIFF_THRESHOLD_2:
+            bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
+        if PARAMS.prev_direction_diff is not None and abs(PARAMS.prev_direction_diff) > abs(direction_diff):
+            bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
+    return bonus
+
 def calculate_distance_reward(bearing, normalized_car_distance_from_route, normalized_route_distance_from_inner_border, normalized_route_distance_from_outer_border):
     distance_reward = 0
-    if "center" in bearing:  # i.e., on the route line
+    if "center" in bearing:
         distance_from_route = 0
         distance_reward = 1
-    elif "right" in bearing:  # i.e., on right side of the route line
+    elif "right" in bearing:
         sigma = abs(normalized_route_distance_from_inner_border / 4)
         distance_reward = math.exp(-0.5 * abs(normalized_car_distance_from_route) ** 2 / sigma ** 2)
-    elif "left" in bearing:  # i.e., on left side of the route line
+    elif "left" in bearing:
         sigma = abs(normalized_route_distance_from_outer_border / 4)
         distance_reward = math.exp(-0.5 * abs(normalized_car_distance_from_route) ** 2 / sigma ** 2)
     return distance_reward
@@ -171,12 +187,12 @@ def calculate_distance_reward(bearing, normalized_car_distance_from_route, norma
 def calculate_intermediate_progress_bonus(progress, steps):
     progress_reward = 10 * progress / steps
     if steps <= 5:
-        progress_reward = 1  # Ignore progress in the first 5 steps
+        progress_reward = 1
 
     intermediate_progress_bonus = 0
     pi = int(progress // 10)
     if pi != 0 and PARAMS.intermediate_progress[pi] == 0:
-        if pi == 10:  # 100% track completion
+        if pi == 10:
             intermediate_progress_bonus = progress_reward ** 14
         else:
             intermediate_progress_bonus = progress_reward ** (5 + 0.75 * pi)
@@ -188,11 +204,8 @@ def calculate_direction_diff(heading, vehicle_x, vehicle_y, next_point):
     next_point_x = next_point[0]
     next_point_y = next_point[1]
 
-    # Calculate the direction in radians, arctan2(dy, dx), the result is (-pi, pi) in radians between target and current vehicle position
     route_direction = math.atan2(next_point_y - vehicle_y, next_point_x - vehicle_x)
-    # Convert to degrees
     route_direction = math.degrees(route_direction)
-    # Calculate the difference between the track direction and the heading direction of the car
     direction_diff = route_direction - heading
     return direction_diff
 
@@ -200,14 +213,9 @@ def calculate_heading_reward(heading, vehicle_x, vehicle_y, next_point):
     next_point_x = next_point[0]
     next_point_y = next_point[1]
 
-    # Calculate the direction in radians, arctan2(dy, dx), the result is (-pi, pi) in radians between target and current vehicle position
     route_direction = math.atan2(next_point_y - vehicle_y, next_point_x - vehicle_x)
-    # Convert to degrees
     route_direction = math.degrees(route_direction)
-    # Calculate the difference between the track direction and the heading direction of the car
     direction_diff = route_direction - heading
-    # Check that the direction_diff is in valid range
-    # Then compute the heading reward
     heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 10
     if abs(direction_diff) <= 20:
         heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 4
