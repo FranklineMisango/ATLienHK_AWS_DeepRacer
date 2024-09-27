@@ -1,21 +1,80 @@
 import math
 
-# Constants
-SPEED_INCREASE_BONUS_DEFAULT = 10
-OFF_TRACK_PENALTY_THRESHOLD = 0.5
-OFF_TRACK_PENALTY_MIN = 0.1
-HEADING_DECREASE_BONUS_MAX = 10
-DIRECTION_DIFF_THRESHOLD_1 = 10
-DIRECTION_DIFF_THRESHOLD_2 = 5
-STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER = 2
+##action space 
+{
+  "action_space": [
+    {"steering_angle": -30.0, "speed": 0.5},
+    {"steering_angle": -27.5, "speed": 0.5},
+    {"steering_angle": -25.0, "speed": 0.5},
+    {"steering_angle": -22.5, "speed": 0.5},
+    {"steering_angle": -20.0, "speed": 0.5},
+    {"steering_angle": -17.5, "speed": 0.5},
+    {"steering_angle": -15.0, "speed": 0.5},
+    {"steering_angle": -12.5, "speed": 0.5},
+    {"steering_angle": -10.0, "speed": 0.5},
+    {"steering_angle": -7.5, "speed": 0.5},
+    {"steering_angle": -5.0, "speed": 0.5},
+    {"steering_angle": -2.5, "speed": 0.5},
+    {"steering_angle": 0.0, "speed": 0.5},
+    {"steering_angle": 2.5, "speed": 0.5},
+    {"steering_angle": 5.0, "speed": 0.5},
+    {"steering_angle": 7.5, "speed": 0.5},
+    {"steering_angle": 10.0, "speed": 0.5},
+    {"steering_angle": 12.5, "speed": 0.5},
+    {"steering_angle": 15.0, "speed": 0.5},
+    {"steering_angle": 17.5, "speed": 0.5},
+    {"steering_angle": 20.0, "speed": 0.5},
+    {"steering_angle": 22.5, "speed": 0.5},
+    {"steering_angle": 25.0, "speed": 0.5},
+    {"steering_angle": 27.5, "speed": 0.5},
+    {"steering_angle": 30.0, "speed": 0.5},
+    {"steering_angle": -30.0, "speed": 1.0},
+    {"steering_angle": -27.5, "speed": 1.0},
+    {"steering_angle": -25.0, "speed": 1.0},
+    {"steering_angle": -22.5, "speed": 1.0},
+    {"steering_angle": -20.0, "speed": 1.0},
+    {"steering_angle": -17.5, "speed": 1.0},
+    {"steering_angle": -15.0, "speed": 1.0},
+    {"steering_angle": -12.5, "speed": 1.0},
+    {"steering_angle": -10.0, "speed": 1.0},
+    {"steering_angle": -7.5, "speed": 1.0},
+    {"steering_angle": -5.0, "speed": 1.0},
+    {"steering_angle": -2.5, "speed": 1.0},
+    {"steering_angle": 0.0, "speed": 1.0},
+    {"steering_angle": 2.5, "speed": 1.0},
+    {"steering_angle": 5.0, "speed": 1.0},
+    {"steering_angle": 7.5, "speed": 1.0},
+    {"steering_angle": 10.0, "speed": 1.0},
+    {"steering_angle": 12.5, "speed": 1.0},
+    {"steering_angle": 15.0, "speed": 1.0},
+    {"steering_angle": 17.5, "speed": 1.0},
+    {"steering_angle": 20.0, "speed": 1.0},
+    {"steering_angle": 22.5, "speed": 1.0},
+    {"steering_angle": 25.0, "speed": 1.0},
+    {"steering_angle": 27.5, "speed": 1.0},
+    {"steering_angle": 30.0, "speed": 1.0}
+  ],
+  "sensor": ["FRONT_FACING_CAMERA"],
+  "neural_network": "DEEP_CONVOLUTIONAL_NETWORK_SHALLOW",
+  "training_algorithm": "clipped_ppo",
+  "action_space_type": "discrete",
+  "version": "6"
+}
 class PARAMS:
     prev_speed = None
-    prev_steering_angle = None
+    prev_steering_angle = None 
     prev_steps = None
     prev_direction_diff = None
+    prev_normalized_distance_from_route = None
+    unpardonable_action = False
+    intermediate_progress = [0] * 11
 
 def reward_function(params):
-
+    # Constants
+    MAX_REWARD = 1e3
+    TIME_PENALTY_FACTOR = 0.01  # Adjust this factor to control time penalty
+    OFF_TRACK_PENALTY_MIN = 0.1
+    OFF_TRACK_PENALTY_THRESHOLD = 0.5
 
     # Read input parameters
     heading = params['heading']
@@ -24,188 +83,160 @@ def reward_function(params):
     steering_angle = params['steering_angle']
     speed = params['speed']
     progress = params.get('progress', 0)
-    bearing = params.get('bearing', "")
     normalized_car_distance_from_route = params.get('normalized_car_distance_from_route', 0)
-    normalized_route_distance_from_inner_border = params.get('normalized_route_distance_from_inner_border', 0)
-    normalized_route_distance_from_outer_border = params.get('normalized_route_distance_from_outer_border', 0)
     vehicle_x = params['x']
     vehicle_y = params['y']
     waypoints = params['waypoints']
     closest_waypoints = params['closest_waypoints']
     is_turn_upcoming = params.get('is_turn_upcoming', False)
-    is_heading_in_right_direction = params.get('is_heading_in_right_direction', False)
-    normalized_distance_from_route = params.get('normalized_distance_from_route', 0)
-    curve_bonus = params.get('curve_bonus', 0)
-    straight_section_bonus = params.get('straight_section_bonus', 0)
     all_wheels_on_track = params['all_wheels_on_track']
     wheels_on_track = params.get('wheels_on_track', 4)
-
-    # Define a safety limit for reward to avoid excessive values
-    MAX_REWARD = 1e3
+    track_width = params.get('track_width', 1.0)  # Example default value
 
     # Calculate the next waypoint
     next_point = waypoints[closest_waypoints[1]]
 
-    # Reinitialize previous parameters if it is a new episode
-    if PARAMS.prev_steps is None or steps < PARAMS.prev_steps:
-        PARAMS.prev_speed = None
-        PARAMS.prev_steering_angle = None
-        PARAMS.prev_direction_diff = None
-        PARAMS.prev_normalized_distance_from_route = None
-        PARAMS.intermediate_progress = [0] * 11
+    # Adaptive Speed Reward (Suggestion 1)
+    speed_reward = calculate_adaptive_speed_reward(speed)
 
-    # Check if the speed has decreased
-    has_speed_dropped = PARAMS.prev_speed is not None and PARAMS.prev_speed > speed
+    # Lateral Distance Reward Scaling (Suggestion 2)
+    lateral_distance_reward = max(0, 1 - 2 * abs(distance_from_center) / track_width)
 
-    # Adaptive speed thresholds
-    min_speed, max_speed = calculate_adaptive_speed_thresholds(is_turn_upcoming)
+    # Off-Track Penalty
+    off_track_penalty = max(OFF_TRACK_PENALTY_MIN, 1 - abs(normalized_car_distance_from_route))
+    
+    # Heading Reward
+    heading_reward = calculate_heading_reward(heading, vehicle_x, vehicle_y, next_point)
 
-    # Calculate the speed reward
-    speed_reward = calculate_speed_reward(speed, min_speed, max_speed)
+    # Curvature-based Reward Adjustment (Suggestion 3)
+    curvature_reward = calculate_curvature_reward(waypoints, closest_waypoints, speed)
 
-    # Penalize slowing down without a valid reason on straight roads
-    speed_maintain_bonus = calculate_speed_maintain_bonus(has_speed_dropped, speed, PARAMS.prev_speed, is_turn_upcoming)
+    # Intermediate Progress Bonus Normalization (Suggestion 4)
+    intermediate_progress_bonus = calculate_intermediate_progress_bonus(progress, steps, track_width)
 
-    # Check if the speed has increased - provide additional rewards
-    has_speed_increased = PARAMS.prev_speed is not None and PARAMS.prev_speed < speed
-    speed_increase_bonus = SPEED_INCREASE_BONUS_DEFAULT
-    if has_speed_increased and not is_turn_upcoming:
-        speed_increase_bonus = max(speed / max(PARAMS.prev_speed, min_speed), 1)
+    # Steering Angle Maintenance Bonus Scaling (Suggestion 5)
+    steering_angle_bonus = calculate_steering_angle_bonus(steering_angle, speed)
 
-    # Penalize moving off track
-    off_track_penalty = 1 - abs(normalized_distance_from_route)
-    if off_track_penalty < OFF_TRACK_PENALTY_THRESHOLD:
-        off_track_penalty = OFF_TRACK_PENALTY_MIN
+    # Adaptive Time Penalty (Suggestion 6)
+    adaptive_time_penalty = TIME_PENALTY_FACTOR * steps
+    if distance_from_center > track_width / 4:
+        adaptive_time_penalty *= 2  # Increase penalty if car is far from track center
 
-    # Penalize making the heading direction worse
-    heading_bonus = 0
-    direction_diff = params['heading']
-    if PARAMS.prev_direction_diff is not None and is_heading_in_right_direction:
-        if abs(PARAMS.prev_direction_diff / direction_diff) > 1:
-            heading_bonus = min(HEADING_DECREASE_BONUS_MAX, abs(PARAMS.prev_direction_diff / direction_diff))
+    # Wheel-off-track Penalty Scaling (Suggestion 7)
+    wheel_off_track_penalty = calculate_wheel_off_track_penalty(all_wheels_on_track, wheels_on_track)
 
-    # Check if the steering angle has changed
-    has_steering_angle_changed = PARAMS.prev_steering_angle is not None and not math.isclose(PARAMS.prev_steering_angle, steering_angle)
+    # Total reward calculation with weighted components
+    total_reward = (
+        0.3 * speed_reward +
+        0.2 * lateral_distance_reward +
+        0.2 * heading_reward +
+        0.2 * curvature_reward +
+        0.1 * intermediate_progress_bonus +
+        steering_angle_bonus
+    ) * off_track_penalty - adaptive_time_penalty - wheel_off_track_penalty
 
-    # Not changing the steering angle is good if heading in the right direction
-    steering_angle_maintain_bonus = calculate_steering_angle_reward(is_heading_in_right_direction, has_steering_angle_changed, direction_diff)
+    # Reward Normalization (Suggestion 8)
+    total_reward = normalize_reward(total_reward, progress, speed, track_width)
 
-    # Reward reducing distance to the race line
-    distance_reduction_bonus = 1
-    if PARAMS.prev_normalized_distance_from_route is not None and PARAMS.prev_normalized_distance_from_route > normalized_distance_from_route:
-        if abs(normalized_distance_from_route) > 0:
-            distance_reduction_bonus = min(abs(PARAMS.prev_normalized_distance_from_route / normalized_distance_from_route), 2)
-
-    # Before returning reward, update the variables
-    PARAMS.prev_speed = speed
-    PARAMS.prev_steering_angle = steering_angle
-    PARAMS.prev_direction_diff = direction_diff
-    PARAMS.prev_steps = steps
-    PARAMS.prev_normalized_distance_from_route = normalized_distance_from_route
-
-    # Calculate rewards
-    heading_reward = params['heading']
-    distance_reward = calculate_distance_reward(bearing, normalized_car_distance_from_route, normalized_route_distance_from_inner_border, normalized_route_distance_from_outer_border)
-    # Heading component of reward
-    HC = 10 * heading_reward * steering_angle_maintain_bonus
-    # Distance component of reward
-    DC = 10 * distance_reward * distance_reduction_bonus
-    # Speed component of reward
-    SC = 10 * speed_reward * speed_maintain_bonus * speed_increase_bonus
-    # Immediate component of reward
-    IC = (HC + DC + SC) ** 2 + (HC * DC * SC)
-    # Long term component of reward
-    intermediate_progress_bonus = calculate_intermediate_progress_bonus(progress, steps)
-    LC = curve_bonus + intermediate_progress_bonus + straight_section_bonus
-
-    # Incentive for finishing the track
-    if progress == 100:
-        LC += 500
-
-    # Sharp corner logic: allow up to three wheels off track
-    if is_turn_upcoming:
-        if wheels_on_track < 1:
-            total_reward = 1e-3
-        elif wheels_on_track < 4:
-            total_reward *= 0.5
-    else:
-        if not all_wheels_on_track:
-            total_reward = 1e-3
-
-    total_reward = max(IC + LC, 1e-3) * off_track_penalty
-
-    # Apply a cap to the reward to avoid excessive values
-    total_reward = min(total_reward, MAX_REWARD)
+    # Reward Clipping (Suggestion 10)
+    total_reward = min(max(total_reward, -MAX_REWARD), MAX_REWARD)
 
     return total_reward
 
-def calculate_speed_reward(speed, min_speed, max_speed):
+
+def calculate_adaptive_speed_reward(speed):
+    # Adaptive Speed Reward with a piecewise function (Suggestion 1)
+    min_speed = 1.0
+    optimal_speed_low = 2.0
+    optimal_speed_high = 3.5
+    max_speed = 4.0
+
     if speed < min_speed:
-        return 0.1
-    elif speed > max_speed:
-        return 1.0
+        return 0
+    elif min_speed <= speed <= optimal_speed_low:
+        return (speed - min_speed) / (optimal_speed_low - min_speed)
+    elif optimal_speed_low < speed <= optimal_speed_high:
+        return 1.0  # Full reward in the optimal range
     else:
-        return (speed - min_speed) / (max_speed - min_speed)
+        return max(0, (max_speed - speed) / (max_speed - optimal_speed_high))
 
-def calculate_speed_maintain_bonus(has_speed_dropped, speed, prev_speed, is_turn_upcoming):
-    if has_speed_dropped and not is_turn_upcoming:
-        speed_diff = speed - prev_speed
-        if speed_diff < 0:
-            return max(speed / max(prev_speed, 1), 0.5)
-    return 1
 
-def calculate_adaptive_speed_thresholds(is_turn_upcoming):
-    if is_turn_upcoming:
-        return 1.5, 3.0
+def calculate_curvature_reward(waypoints, closest_waypoints, speed):
+    # Refine curvature reward based on upcoming turns and speed (Suggestion 3)
+    next_point = waypoints[closest_waypoints[1]]
+    prev_point = waypoints[closest_waypoints[0]]
+    
+    dx = next_point[0] - prev_point[0]
+    dy = next_point[1] - prev_point[1]
+    curvature = math.atan2(dy, dx)
+
+    if abs(curvature) < math.pi / 8:
+        return 1.0  # Reward straight paths
+    elif math.pi / 8 <= abs(curvature) < math.pi / 4:
+        return 1.5 if speed < 2.5 else 1.0  # Reward low-speed navigation on curves
     else:
-        return 2.0, 4.0
+        return max(0, 1 - abs(curvature) / (math.pi / 4))  # Penalize sharp turns at high speeds
 
-def calculate_steering_angle_reward(is_heading_in_right_direction, has_steering_angle_changed, direction_diff):
-    bonus = 1
-    if is_heading_in_right_direction and not has_steering_angle_changed:
-        if abs(direction_diff) < DIRECTION_DIFF_THRESHOLD_1:
-            bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
-        if abs(direction_diff) < DIRECTION_DIFF_THRESHOLD_2:
-            bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
-        if PARAMS.prev_direction_diff is not None and abs(PARAMS.prev_direction_diff) > abs(direction_diff):
-            bonus *= STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER
-    return bonus
 
-def calculate_distance_reward(bearing, normalized_car_distance_from_route, normalized_route_distance_from_inner_border, normalized_route_distance_from_outer_border):
-    distance_reward = 0
-    if "center" in bearing:
-        distance_from_route = 0
-        distance_reward = 1
-    elif "right" in bearing:
-        sigma = abs(normalized_route_distance_from_inner_border / 4)
-        distance_reward = math.exp(-0.5 * abs(normalized_car_distance_from_route) ** 2 / sigma ** 2)
-    elif "left" in bearing:
-        sigma = abs(normalized_route_distance_from_outer_border / 4)
-        distance_reward = math.exp(-0.5 * abs(normalized_car_distance_from_route) ** 2 / sigma ** 2)
-    return distance_reward
-
-def calculate_intermediate_progress_bonus(progress, steps):
+def calculate_intermediate_progress_bonus(progress, steps, track_width):
+    # Normalize intermediate progress bonus by track complexity (Suggestion 4)
     progress_reward = 10 * progress / steps
     if steps <= 5:
-        progress_reward = 1
+        progress_reward = 1  # Ignore progress in the first 5 steps
 
     intermediate_progress_bonus = 0
     pi = int(progress // 10)
     if pi != 0 and PARAMS.intermediate_progress[pi] == 0:
-        if pi == 10:
-            intermediate_progress_bonus = progress_reward ** 14
-        else:
-            intermediate_progress_bonus = progress_reward ** (5 + 0.75 * pi)
+        intermediate_progress_bonus = progress_reward ** (1 + 0.5 * pi)
         PARAMS.intermediate_progress[pi] = intermediate_progress_bonus
 
     return intermediate_progress_bonus
+
+
+def calculate_steering_angle_bonus(steering_angle, speed):
+    # Scale steering angle bonus based on speed (Suggestion 5)
+    if PARAMS.prev_steering_angle is not None:
+        STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER = 2
+        angle_diff = abs(steering_angle - PARAMS.prev_steering_angle)
+        steering_angle_bonus = max(0, 1 - angle_diff / 10) * (STEERING_ANGLE_MAINTAIN_BONUS_MULTIPLIER * (speed / 3))
+    else:
+        steering_angle_bonus = 0
+
+    PARAMS.prev_steering_angle = steering_angle
+    return steering_angle_bonus
+
+
+def calculate_wheel_off_track_penalty(all_wheels_on_track, wheels_on_track):
+    # Scale penalty based on the number of wheels off the track (Suggestion 7)
+    if all_wheels_on_track:
+        return 0
+    elif wheels_on_track == 3:
+        return 0.1
+    elif wheels_on_track == 2:
+        return 0.25
+    elif wheels_on_track == 1:
+        return 0.5
+    else:
+        return 1.0  # Heavy penalty if all wheels are off the track
+
+
+def normalize_reward(total_reward, progress, speed, track_width):
+    # Normalize reward based on various factors (Suggestion 8)
+    progress_factor = (progress + 1e-3)
+    speed_factor = (speed + 1e-3)
+    track_complexity_factor = max(0.5, track_width / 5)
+
+    return total_reward / (progress_factor * speed_factor * track_complexity_factor)
 
 def calculate_direction_diff(heading, vehicle_x, vehicle_y, next_point):
     next_point_x = next_point[0]
     next_point_y = next_point[1]
 
+    # Calculate the direction in radians, arctan2(dy, dx), the result is (-pi, pi) in radians between target and current vehicle position
     route_direction = math.atan2(next_point_y - vehicle_y, next_point_x - vehicle_x)
+    # Convert to degrees
     route_direction = math.degrees(route_direction)
+    # Calculate the difference between the track direction and the heading direction of the car
     direction_diff = route_direction - heading
     return direction_diff
 
@@ -213,9 +244,14 @@ def calculate_heading_reward(heading, vehicle_x, vehicle_y, next_point):
     next_point_x = next_point[0]
     next_point_y = next_point[1]
 
+    # Calculate the direction in radians, arctan2(dy, dx), the result is (-pi, pi) in radians between target and current vehicle position
     route_direction = math.atan2(next_point_y - vehicle_y, next_point_x - vehicle_x)
+    # Convert to degrees
     route_direction = math.degrees(route_direction)
+    # Calculate the difference between the track direction and the heading direction of the car
     direction_diff = route_direction - heading
+    # Check that the direction_diff is in valid range
+    # Then compute the heading reward
     heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 10
     if abs(direction_diff) <= 20:
         heading_reward = math.cos(abs(direction_diff) * (math.pi / 180)) ** 4
