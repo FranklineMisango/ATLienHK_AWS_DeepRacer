@@ -22,6 +22,8 @@ This README provides an overview of my current and future DeepRacer Models (v1 c
 ## Training Optimization Used from [deepracer-on-the-spot](https://github.com/aws-deepracer-community/deepracer-on-the-spot)
 
 ![DeepRacer](img/architecture.png)
+
+* Training URLS : `http://98.80.171.249:8100/menu.html` and `http://98.80.171.249:8080`
 * Action space definitions
 * Reward function templates
 * Hyperparameter tuning scripts
