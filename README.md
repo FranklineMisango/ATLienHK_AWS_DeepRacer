@@ -1,6 +1,6 @@
-# <img src="img/aws_deep_racer.png?raw=true" height="70">
+# <img src="img/aws_deep_racer.png?raw=true" height="70"> <img src="https://img.shields.io/badge/-Python-3776AB?logo=python&logoColor=white"/> <img src="https://img.shields.io/badge/License-MIT-blue.svg"/>
 
-<p align = center>
+<p align="center">
   <img src="https://img.shields.io/badge/-Python-3776AB?logo=python&logoColor=white"/>
   <img src="https://img.shields.io/badge/-AWS-232F3E?logo=amazon-aws&logoColor=white"/>
   <img src="https://img.shields.io/badge/-Git-D51007?logo=git&logoColor=white"/>
@@ -8,14 +8,24 @@
 </p>
 
 ## About
-This README provides an overview of my current and future DeepRacer Models (v1 currently). The goal is basically to : 
-* Define an action Space
-* Develop a Reward function
+
+This README provides an overview of my current and future DeepRacer Models (v1 currently). The goal is basically to:
+
+* Define an action space
+* Develop a reward function
 * Experiment with various hyperparameters
-* Modifying Training times : Optimal turn speeds
-* Testing on different tracks : AWS DeepRacer Tracks
+* Modify training times: Optimal turn speeds
+* Test on different tracks: AWS DeepRacer Tracks
 
 ## Modifications
 
-* Faster Turning speed
+* Faster turning speed
 * Easier handling of sharper turns
+
+## Training Optimization Used from [deepracer-on-the-spot](https://github.com/aws-deepracer-community/deepracer-on-the-spot)
+[The Architecture](img/architecture.png)
+* Action space definitions
+* Reward function templates
+* Hyperparameter tuning scripts
+* Training optimization techniques
+* Track testing configurations
