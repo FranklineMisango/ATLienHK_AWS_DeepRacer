@@ -1,11 +1,4 @@
-# <img src="img/aws_deep_racer.png?raw=true" height="70"> <img src="https://img.shields.io/badge/-Python-3776AB?logo=python&logoColor=white"/> <img src="https://img.shields.io/badge/License-MIT-blue.svg"/>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/-Python-3776AB?logo=python&logoColor=white"/>
-  <img src="https://img.shields.io/badge/-AWS-232F3E?logo=amazon-aws&logoColor=white"/>
-  <img src="https://img.shields.io/badge/-Git-D51007?logo=git&logoColor=white"/>
-  <img src="https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white"/>
-</p>
+# <img src="img/aws_deep_racer.png?raw=true" height="70"> <img src="https://img.shields.io/badge/-Python-3776AB?logo=python&logoColor=white"/> <img src="https://img.shields.io/badge/License-MIT-blue.svg"/> <img src="https://img.shields.io/badge/-AWS-232F3E?logo=amazon-aws&logoColor=white"/> <img src="https://img.shields.io/badge/-Git-D51007?logo=git&logoColor=white"/> <img src="https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white"/>
 
 ## About
 
@@ -23,7 +16,8 @@ This README provides an overview of my current and future DeepRacer Models (v1 c
 * Easier handling of sharper turns
 
 ## Training Optimization Used from [deepracer-on-the-spot](https://github.com/aws-deepracer-community/deepracer-on-the-spot)
-[The Architecture](img/architecture.png)
+
+![DeepRacer](img/architecture.png)
 * Action space definitions
 * Reward function templates
 * Hyperparameter tuning scripts
